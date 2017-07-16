@@ -1,0 +1,59 @@
+import urllib.request as url_request
+import urllib.parse as url_parse
+import urllib.robotparser as robotparser
+import re
+from pprint import pprint
+
+def download(url, user_agent='wswp', num_retries=2):
+    print('Downloading:{}'.format(url))
+    headers = {'User-agent' : user_agent}
+    request = url_request.Request(url, headers=headers)
+    try:
+        html = url_request.urlopen(request).read()
+    except url_request.HTTPError as e:
+        print('Download error:{}'.format(e.reason))
+        html = None
+        if hasattr(e, 'code') and 500 <= e.code <= 600:
+            return download(url, user_agent, num_retries - 1)
+
+    return html.decode('utf-8')
+
+
+def link_crawler(seed_url, link_regex, robots_parser=None, user_agent=None):
+    '''
+    :param seed_url: crawl from the seed_url, following links
+    :param link_regex: matched by link_regex 
+    :return: list of urls
+    '''
+    crawl_queue = [seed_url]
+    seen = set(crawl_queue)
+
+
+    while crawl_queue:
+        url = crawl_queue.pop()
+        if robots_parser.can_fetch(user_agent, url):
+            html = download(url)
+        else:
+            continue
+
+        # filter links matching our regular expression
+        for link in get_links(html):
+            if re.match(link_regex, link):
+                if link not in seen:
+                    seen.add(link)
+                    crawl_queue.append(link)
+
+def get_links(html):
+    """ return a list of links from html
+    """
+    webpage_regex = re.compile('<a[^>]+href=["\'](.*?)["\']', re.IGNORECASE)
+    return webpage_regex.findall(html)
+
+
+
+if __name__ == '__main__':
+    rp = robotparser.RobotFileParser()
+    rp.set_url('http://jandan.net/robots.txt')
+    rp.read()
+
+    link_crawler(r'jandan.net/ooxx', r'')
